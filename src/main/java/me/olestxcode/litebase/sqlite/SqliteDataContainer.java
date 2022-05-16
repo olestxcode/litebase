@@ -1,4 +1,4 @@
-package me.olestxcode.litebase.mysql;
+package me.olestxcode.litebase.sqlite;
 
 import me.olestxcode.litebase.*;
 import org.apache.commons.lang3.StringUtils;
@@ -14,39 +14,33 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-public class MySqlDataContainer<T, ID> extends AbstractDataContainer<T, ID> {
+public class SqliteDataContainer<T, ID> extends AbstractDataContainer<T, ID> {
 
     private static String getDatabaseType(Class<?> clazz, boolean unique, int length) {
         if (clazz.isAssignableFrom(Long.class))
-            return "BIGINT";
+            return "INTEGER";
         else if (clazz.isAssignableFrom(Integer.class))
-            return "MEDIUMINT";
+            return "INTEGER";
         else if (clazz.isAssignableFrom(Short.class))
-            return "SMALLINT";
+            return "INTEGER";
         else if (clazz.isAssignableFrom(Byte.class) || clazz.isAssignableFrom(Boolean.class))
-            return "TINYINT";
+            return "INTEGER";
         else if (clazz.isAssignableFrom(Double.class))
-            return "DOUBLE";
+            return "REAL";
         else if (clazz.isAssignableFrom(Float.class))
-            return "FLOAT";
+            return "REAL";
         else if (clazz.isAssignableFrom(String.class)) {
             if (unique)
                 return String.format("VARCHAR(%s)", length);
-            else {
-                if (length <= 255)
-                    return "TINYTEXT";
-                else if (length <= 16777215)
-                    return "MEDIUMTEXT";
-                else
-                    return "LONGTEXT";
-            }
+            else
+                return "TEXT";
         } else
             return null;
     }
 
     private final DataSource dataSource;
 
-    public MySqlDataContainer(String name, DataSource dataSource, Map<String, Column> columnMap, Function<Data, T> objectMapper, Function<T, Data> dataMapper) {
+    public SqliteDataContainer(String name, DataSource dataSource, Map<String, Column> columnMap, Function<Data, T> objectMapper, Function<T, Data> dataMapper) {
         super(name, columnMap, objectMapper, dataMapper);
         this.dataSource = dataSource;
     }
@@ -107,14 +101,9 @@ public class MySqlDataContainer<T, ID> extends AbstractDataContainer<T, ID> {
                             preparedColumns.put(index.getAndIncrement(), column);
                             return "?";
                         })
-                        .collect(Collectors.toList()), ", "),
-
-                updateColumns = StringUtils.join(StreamSupport.stream(getColumns().spliterator(), false)
-                        .filter(Column::isUpdatable)
-                        .map(column -> String.format("`%s` = VALUES(`%s`)", column.getName(), column.getName()))
                         .collect(Collectors.toList()), ", ");
 
-        return new QueryInfo(String.format("INSERT INTO `%s` (%s) VALUES (%s) ON DUPLICATE KEY UPDATE %s;", getName(), columns, insertChars, updateColumns), preparedColumns);
+        return new QueryInfo(String.format("REPLACE INTO `%s` (%s) VALUES (%s);", getName(), columns, insertChars), preparedColumns);
     }
 
     private QueryInfo getUpdateSql() {
